@@ -1,0 +1,17 @@
+# Telegram bot token
+bot_token: "BOT_TOKEN_HERE"
+
+# Database path
+database: "./instance.db"
+
+# ID of support bot group where messages will go
+target_group: -12345678
+
+# Message shown to users when they /start the bot (HTML)
+welcome_text: |
+  <b>Thank you for contacting support for Sample Project</b>.
+  Please state clearly what you would like help with.
+
+# Message shown when user writes a message to bot (HTML)
+reply_text: |
+  Thank you for contacting us, we will reply to your message shortly.
