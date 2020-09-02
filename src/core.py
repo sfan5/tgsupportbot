@@ -201,13 +201,11 @@ def handle_private(ev):
 
 	# refresh user in db
 	now = datetime.now()
-	was_new_user = False
 	with db_modify_user(ev.chat.id, allow_new=True) as user:
 		if user.id is None:
 			user.defaults()
 			user.id = ev.chat.id
 			assert ev.chat.id == ev.from_user.id
-			was_new_user = True
 		user.username = ev.from_user.username
 		user.realname = ev.from_user.first_name
 		if ev.from_user.last_name:
@@ -264,6 +262,10 @@ def handle_private_command(ev, user, c):
 
 ### Helpers
 
+def str_is_printable(s):
+	NOT_PRINTABLE = (0x20, 0x115f, 0x1160, 0x3164, 0xffa0)
+	return any((c.isprintable() and ord(c) not in NOT_PRINTABLE) for c in s)
+
 def parse_timedelta(s):
 	if len(s) < 2 or not s[:-1].isdigit():
 		return
@@ -286,7 +288,7 @@ def format_datetime(dt):
 
 def format_user_info(user):
 	realname = user.realname
-	if not any(c.isprintable() for c in realname):
+	if not str_is_printable(realname):
 		realname = "<empty name>"
 	s = "User: <a href=\"tg://user?id=%d\">%s</a>" % (
 		user.id, escape_html(realname))
