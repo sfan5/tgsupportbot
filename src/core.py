@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 LONG_LONG_TIME = datetime(2100, 1, 1)
 ID_REMIND_DURATION = timedelta(days=2)
-ALL_CONTENT_TYPES = ["text", "location", "venue", "contact",
+ALL_CONTENT_TYPES = ["text", "location", "venue", "contact", "animation",
 	"audio", "document", "photo", "sticker", "video", "video_note", "voice"]
 
 bot = None
@@ -155,13 +155,7 @@ def handle_group(ev):
 
 	# handle commands
 	if ev.content_type == "text" and ev.text.startswith("/"):
-		arg = ""
-		if " " in ev.text:
-			pos = ev.text.find(" ")
-			c = ev.text[1:pos].lower()
-			arg = ev.text[pos+1:]
-		else:
-			c = ev.text[1:].lower()
+		c, _, arg = ev.text[1:].partition(" ")
 		return handle_group_command(ev, user_id, c, arg)
 
 	# deliver message
@@ -225,8 +219,7 @@ def handle_private(ev):
 
 	# handle commands
 	if ev.content_type == "text" and ev.text.startswith("/"):
-		pos = ev.text.find(" ") if " " in ev.text else len(ev.text)
-		c = ev.text[1:pos].lower()
+		c = ev.text[1:].split(" ", 2)[0]
 		if handle_private_command(ev, user, c):
 			return
 
@@ -305,10 +298,14 @@ def resend_message(chat_id, ev):
 		photo = sorted(ev.photo, key=lambda e: e.width*e.height, reverse=True)[0]
 		return bot.send_photo(chat_id, photo.file_id, caption=ev.caption)
 	elif ev.content_type == "audio":
-		kwargs = {}
-		for prop in ["performer", "title"]:
-			kwargs[prop] = getattr(ev.audio, prop)
-		return bot.send_audio(chat_id, ev.audio.file_id, caption=ev.caption)
+		kwargs = {
+			"caption": ev.caption,
+			"performer": ev.audio.performer,
+			"title": ev.audio.performer,
+		}
+		return bot.send_audio(chat_id, ev.audio.file_id, **kwargs)
+	elif ev.content_type == "animation":
+		return bot.send_animation(chat_id, ev.animation.file_id, caption=ev.caption)
 	elif ev.content_type == "document":
 		return bot.send_document(chat_id, ev.document.file_id, caption=ev.caption)
 	elif ev.content_type == "video":
@@ -328,12 +325,12 @@ def resend_message(chat_id, ev):
 			"latitude": ev.venue.location.latitude,
 			"longitude": ev.venue.location.longitude,
 		}
-		for prop in ["title", "address", "foursquare_id"]:
+		for prop in ("title", "address", "foursquare_id", "foursquare_type", "google_place_id", "google_place_type"):
 			kwargs[prop] = getattr(ev.venue, prop)
 		return bot.send_venue(chat_id, **kwargs)
 	elif ev.content_type == "contact":
 		kwargs = {}
-		for prop in ["phone_number", "first_name", "last_name"]:
+		for prop in ("phone_number", "first_name", "last_name"):
 			kwargs[prop] = getattr(ev.contact, prop)
 		return bot.send_contact(chat_id, **kwargs)
 	elif ev.content_type == "sticker":
