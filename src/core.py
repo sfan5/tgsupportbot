@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 
 LONG_LONG_TIME = datetime(2100, 1, 1)
 ID_REMIND_DURATION = timedelta(days=2)
-ALL_CONTENT_TYPES = ["text", "location", "venue", "contact", "animation",
-	"audio", "document", "photo", "sticker", "video", "video_note", "voice"]
+ALL_CONTENT_TYPES = ("text", "location", "venue", "contact", "animation",
+	"audio", "document", "photo", "sticker", "video", "video_note", "voice")
 
 bot = None
 db = None
@@ -24,6 +24,7 @@ def init(config, _db):
 		exit(1)
 
 	logging.getLogger("urllib3").setLevel(logging.WARNING) # very noisy with debug otherwise
+
 	bot = telebot.TeleBot(config["bot_token"], threaded=False)
 	db = _db
 	if config.get("target_group"):
@@ -46,7 +47,7 @@ def set_handler(func, *args, **kwargs):
 def run():
 	while True:
 		try:
-			bot.polling(none_stop=True)
+			bot.polling(none_stop=True, long_polling_timeout=60)
 		except Exception as e:
 			# you're not supposed to call .polling() more than once but I'm left with no choice
 			logging.warning("%s while polling Telegram, retrying.", type(e).__name__)
@@ -116,12 +117,12 @@ def db_auto_sync():
 		db_last_sync = now
 		db.sync()
 
-def db_get_user(id):
+def db_get_user(id) -> User:
 	return db["u%d" % id]
 
 def db_modify_user(id, allow_new=False):
 	key = "u%d" % id
-	obj = db.get(key)
+	obj: User = db.get(key)
 	if obj is None:
 		if allow_new:
 			obj = User()
@@ -158,6 +159,12 @@ def handle_group(ev):
 		c, _, arg = ev.text[1:].partition(" ")
 		return handle_group_command(ev, user_id, c, arg)
 
+	user = db_get_user(user_id)
+	if user.banned_until is not None and (user.banned_until >= datetime.now() and
+		datetime.now() - user.last_messaged >= timedelta(minutes=10)):
+		msg = "Message was not delivered, unban recipient first."
+		return callwrapper(lambda: bot.send_message(target_group, msg))
+
 	# deliver message
 	res = callwrapper(lambda: resend_message(user_id, ev))
 	if res == "blocked":
@@ -190,7 +197,7 @@ def handle_group_command(ev, user_id, c, arg):
 
 def handle_private(ev):
 	if target_group is None:
-		logging.error("Target group not set, dropping message from user")
+		logging.error("Target group not set, dropping message from user!")
 		return
 
 	# refresh user in db
@@ -219,7 +226,7 @@ def handle_private(ev):
 
 	# handle commands
 	if ev.content_type == "text" and ev.text.startswith("/"):
-		c = ev.text[1:].split(" ", 2)[0]
+		c = ev.text[1:].split(" ", 1)[0]
 		if handle_private_command(ev, user, c):
 			return
 
@@ -242,7 +249,6 @@ def handle_private(ev):
 	if reply_text:
 		callwrapper(lambda: bot.send_message(ev.chat.id, reply_text, parse_mode="HTML"))
 
-	# this sucks too
 	with db_modify_user(user.id) as user:
 		user.last_messaged = now
 

@@ -58,7 +58,7 @@ if __name__ == "__main__":
 		print(str(e))
 		exit(1)
 	# Process command line args
-	if readopt("-h") or readopt("--help"):
+	if readopt("-h") is not None or readopt("--help") is not None:
 		usage()
 		exit(0)
 	loglevel = logging.INFO
