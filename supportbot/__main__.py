@@ -6,10 +6,11 @@ import sys
 import os
 import shelve
 import getopt
+from pickle import Unpickler
 
-import src.core as core
+from . import bot
 
-def start_new_thread(func, join=False, args=(), kwargs={}):
+def start_new_thread(func, join=False, args=(), kwargs=None):
 	t = threading.Thread(target=func, args=args, kwargs=kwargs)
 	if not join:
 		t.daemon = True
@@ -17,22 +18,19 @@ def start_new_thread(func, join=False, args=(), kwargs={}):
 	if join:
 		t.join()
 
-def readopt(name):
-	global opts
-	for e in opts:
-		if e[0] == name:
-			return e[1]
-	return None
-
 def usage():
-	print("Usage: %s [-q|-d] [-c config.yaml]" % sys.argv[0])
+	print("Usage: %s [-q|-d] [-c file]" % sys.argv[0])
 	print("Options:")
 	print("  -h    Display this text")
 	print("  -q    Quiet, set log level to WARNING")
 	print("  -c    Location of config file (default: ./config.yaml)")
 
-def open_db(config):
-	return shelve.open(config["database"])
+# well this is just dumb
+class RenamingUnpickler(Unpickler):
+	def find_class(self, module, name):
+		if module == "src.core":
+			module = "supportbot.bot"
+		return super().find_class(module, name)
 
 def main(configpath, loglevel=logging.INFO):
 	with open(configpath, "r") as f:
@@ -40,12 +38,13 @@ def main(configpath, loglevel=logging.INFO):
 
 	logging.basicConfig(format="%(levelname)-7s [%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=loglevel)
 
-	db = open_db(config)
+	shelve.Unpickler = RenamingUnpickler
+	db = shelve.open(config["database"])
 
-	core.init(config, db)
+	bot.init(config, db)
 
 	try:
-		start_new_thread(core.run, join=True)
+		start_new_thread(bot.run, join=True)
 	except KeyboardInterrupt:
 		logging.info("Interrupted, exiting")
 		db.close()
@@ -57,7 +56,12 @@ if __name__ == "__main__":
 	except getopt.GetoptError as e:
 		print(str(e))
 		exit(1)
+
 	# Process command line args
+	def readopt(name):
+		for e in opts:
+			if e[0] == name:
+				return e[1]
 	if readopt("-h") is not None or readopt("--help") is not None:
 		usage()
 		exit(0)
@@ -67,5 +71,6 @@ if __name__ == "__main__":
 	configpath = "./config.yaml"
 	if readopt("-c") is not None:
 		configpath = readopt("-c")
+
 	# Run the actual program
 	main(configpath, loglevel)
