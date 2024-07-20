@@ -21,9 +21,10 @@ bot_self_id: int = None
 target_group: Optional[int] = None
 welcome_text: str = None
 reply_text: str = None
+integration_fmt: Optional[str] = None
 
 def init(config: dict, _db):
-	global bot, db, bot_self_id, target_group, welcome_text, reply_text
+	global bot, db, bot_self_id, target_group, welcome_text, reply_text, integration_fmt
 	if not config.get("bot_token"):
 		logging.error("No telegram token specified.")
 		exit(1)
@@ -36,6 +37,7 @@ def init(config: dict, _db):
 		target_group = int(config["target_group"])
 	welcome_text = config["welcome_text"]
 	reply_text = config["reply_text"]
+	integration_fmt = config.get("integration_fmt")
 
 	set_handler(handle_msg, content_types=ALL_CONTENT_TYPES)
 	bot_self_id = bot.get_me().id
@@ -264,7 +266,7 @@ def handle_private(ev: TMessage):
 	with db_modify_user(user.id) as user:
 		user.last_messaged = now
 
-def handle_private_command(ev: TMessage, user, c):
+def handle_private_command(ev: TMessage, user: User, c):
 	if c == "start":
 		callwrapper(lambda: bot.send_message(ev.chat.id, welcome_text, parse_mode="HTML"))
 		return True
@@ -297,7 +299,7 @@ def escape_html(s):
 def format_datetime(dt):
 	return dt.strftime("%Y-%m-%d %H:%M:%S")
 
-def format_user_info(user):
+def format_user_info(user: User):
 	realname = user.realname
 	if not str_is_printable(realname):
 		realname = "<empty name>"
@@ -305,5 +307,7 @@ def format_user_info(user):
 		user.id, escape_html(realname))
 	if user.username is not None:
 		s += " (@%s)" % escape_html(user.username)
+	if integration_fmt:
+		s += "\n\u27a4 " + (integration_fmt % user.id)
 	s += "\nID: <code>%d</code>" % user.id
 	return s
